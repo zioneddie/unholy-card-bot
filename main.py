@@ -21,7 +21,7 @@ def wrap_text(text, font, max_width, draw):
             bbox = draw.textbbox((0, 0), test_line, font=font)
             width = bbox[2] - bbox[0]
         except AttributeError:
-            width = len(test_line) * 16
+            width = len(test_line) * 12
             
         if width <= max_width:
             current_line.append(word)
@@ -42,54 +42,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # Clean up copied message headers and extract ONLY the actual confession text
-        clean_text = re.sub(r'<[^>]+>', '', text)
-        clean_text = re.sub(r'🚨\s*NEW UNHOLY CONFESSION', '', clean_text, flags=re.IGNORECASE)
-        clean_text = re.sub(r'Category:.*', '', clean_text, flags=re.IGNORECASE)
-        clean_text = re.sub(r'Severity:.*', '', clean_text, flags=re.IGNORECASE)
-        clean_text = re.sub(r'Confession:\s*', '', clean_text, flags=re.IGNORECASE)
-        
-        # Remove markdown bold/quotes remnants and extra spaces
-        clean_text = clean_text.replace('<b>', '').replace('</b>', '').strip().strip('"')
+        # Foolproof extraction: take everything strictly after "Confession:" if it exists
+        if "Confession:" in text:
+            clean_text = text.split("Confession:")[1]
+        else:
+            clean_text = text
+            
+        # Clean up HTML tags, quotes, and extra spaces
+        clean_text = re.sub(r'<[^>]+>', '', clean_text)
+        clean_text = clean_text.replace('<b>', '').replace('</b>', '').strip().strip('"').strip()
 
         if not clean_text:
-            clean_text = text.strip() # Fallback if regex clears too much
+            clean_text = text.strip()
 
-        logging.info(f"Cleaned confession text for card: {clean_text}")
+        logging.info(f"Cleaned text for card: {clean_text}")
         
         # Draw Dark/Gold Card Image (1080x1080)
         image = Image.new("RGB", (1080, 1080), (7, 8, 11))
         draw = ImageDraw.Draw(image)
         
-        # Card outer border and background box
+        # Card outer border
         draw.rounded_rectangle([60, 80, 1020, 1000], radius=32, fill=(16, 18, 26), outline=(212, 175, 55), width=3)
         
+        # Safe font loader (falls back gracefully and scales nicely)
         try:
-            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 40)
-            body_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 48) # Larger, readable font
-            footer_font = ImageFont.truetype("DejaVuSans.ttf", 28)
+            body_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 44)
+            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 36)
+            footer_font = ImageFont.truetype("DejaVuSans.ttf", 26)
         except IOError:
-            title_font = ImageFont.load_default()
             body_font = ImageFont.load_default()
+            title_font = ImageFont.load_default()
             footer_font = ImageFont.load_default()
 
         # Draw Header Title
-        draw.text((120, 140), "🕯️ UNHOLY CONFESSION", font=title_font, fill=(212, 175, 55))
+        draw.text((100, 140), "🕯️ UNHOLY CONFESSION", font=title_font, fill=(212, 175, 55))
 
-        # Wrap confession body text (max width 840px)
-        lines = wrap_text(f'"{clean_text}"', body_font, 840, draw)
+        # Wrap body text
+        lines = wrap_text(f'"{clean_text}"', body_font, 880, draw)
         
-        # Center text block vertically
-        line_height = 64
+        line_height = 56
         total_text_height = len(lines) * line_height
         start_y = max(260, 540 - (total_text_height / 2))
         
         for line in lines:
-            draw.text((120, start_y), line, font=body_font, fill=(240, 240, 240))
+            draw.text((100, start_y), line, font=body_font, fill=(240, 240, 240))
             start_y += line_height
 
         # Draw Footer Branding
-        draw.text((120, 920), "unholyconfessions.online  •  @UnholyPriet", font=footer_font, fill=(150, 150, 150))
+        draw.text((100, 920), "unholyconfessions.online  •  @UnholyPriet", font=footer_font, fill=(150, 150, 150))
 
         bio = io.BytesIO()
         bio.name = 'card.png'
@@ -109,4 +109,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
+        

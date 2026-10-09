@@ -120,11 +120,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    print("Card Generator Bot is listening...")
-    app.run_polling()
+    # Build the application safely for modern PTB versions
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    
+    logging.info("Card Generator Bot is starting polling...")
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
-  
+    

@@ -87,7 +87,7 @@ def generate_confession_card(clean_text: str) -> io.BytesIO:
     # Gold line under title
     draw.line([(170, 195), (width - 170, 195)], fill=soft_gold, width=2)
 
-    # Adaptive font size (more readable)
+    # Adaptive font size
     text_len = len(clean_text)
     if text_len < 120:
         body_size = 46

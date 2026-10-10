@@ -174,7 +174,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & (\~filters.COMMAND), handle_message))
+
+    # Safe version to avoid line break issues
+    handler = MessageHandler(filters.TEXT & (\~filters.COMMAND), handle_message)
+    app.add_handler(handler)
+
     print("Card Generator Bot is running...")
     app.run_polling()
 

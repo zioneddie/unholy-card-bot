@@ -4,35 +4,141 @@ from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filte
 from PIL import Image, ImageDraw, ImageFont
 import io
 import re
+import os
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-BOT_TOKEN = "8880619234:AAFakyjGexW9iNsAcG1SujCj9ExTgnYIEVU"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8880619234:AAFakyjGexW9iNsAcG1SujCj9ExTgnYIEVU")
+
+def get_font(size, bold=False):
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf",
+    ]
+    for path in font_paths:
+        try:
+            return ImageFont.truetype(path, size)
+        except:
+            continue
+    return ImageFont.load_default()
 
 def wrap_text(text, font, max_width, draw):
     words = text.split()
-    lines, current_line = [], []
+    lines = []
+    current_line = []
+
     for word in words:
         test_line = ' '.join(current_line + [word])
-        try:
-            bbox = draw.textbbox((0, 0), test_line, font=font)
-            width = bbox[2] - bbox[0]
-        except AttributeError:
-            width = len(test_line) * 12
-            
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        width = bbox[2] - bbox[0]
+
         if width <= max_width:
             current_line.append(word)
         else:
-            if current_line: lines.append(' '.join(current_line))
+            if current_line:
+                lines.append(' '.join(current_line))
             current_line = [word]
-    if current_line: lines.append(' '.join(current_line))
+
+    if current_line:
+        lines.append(' '.join(current_line))
     return lines
 
+def generate_confession_card(clean_text: str) -> io.BytesIO:
+    width, height = 1080, 1080
+    bg_color = (7, 8, 11)
+    card_color = (16, 18, 26)
+    gold = (212, 175, 55)
+    soft_gold = (180, 150, 50)
+    white = (245, 245, 245)
+    muted = (160, 160, 160)
+
+    image = Image.new("RGB", (width, height), bg_color)
+    draw = ImageDraw.Draw(image)
+
+    # Main card
+    margin = 55
+    draw.rounded_rectangle(
+        [margin, margin + 20, width - margin, height - margin - 20],
+        radius=36,
+        fill=card_color,
+        outline=gold,
+        width=4
+    )
+
+    # Inner subtle border
+    draw.rounded_rectangle(
+        [margin + 12, margin + 32, width - margin - 12, height - margin - 32],
+        radius=28,
+        outline=(40, 35, 20),
+        width=1
+    )
+
+    # Title
+    title_font = get_font(44, bold=True)
+    title = "🕯️  UNHOLY CONFESSION"
+    title_bbox = draw.textbbox((0, 0), title, font=title_font)
+    title_w = title_bbox[2] - title_bbox[0]
+    draw.text(((width - title_w) / 2, 125), title, font=title_font, fill=gold)
+
+    # Gold line under title
+    draw.line([(170, 195), (width - 170, 195)], fill=soft_gold, width=2)
+
+    # Adaptive font size (more readable)
+    text_len = len(clean_text)
+    if text_len < 120:
+        body_size = 46
+        line_height = 60
+    elif text_len < 280:
+        body_size = 38
+        line_height = 50
+    elif text_len < 450:
+        body_size = 32
+        line_height = 44
+    else:
+        body_size = 28
+        line_height = 38
+
+    body_font = get_font(body_size)
+    max_text_width = 820
+
+    display_text = f'"{clean_text}"'
+    lines = wrap_text(display_text, body_font, max_text_width, draw)
+
+    total_text_height = len(lines) * line_height
+    available_top = 230
+    available_bottom = 880
+    available_height = available_bottom - available_top
+
+    start_y = available_top + max(0, (available_height - total_text_height) // 2)
+
+    for line in lines:
+        if start_y > available_bottom - 15:
+            break
+        line_bbox = draw.textbbox((0, 0), line, font=body_font)
+        line_w = line_bbox[2] - line_bbox[0]
+        x = (width - line_w) / 2
+        draw.text((x, start_y), line, font=body_font, fill=white)
+        start_y += line_height
+
+    # Footer
+    footer_font = get_font(26)
+    footer = "unholyconfessions.online  •  @UnholyPriet"
+    footer_bbox = draw.textbbox((0, 0), footer, font=footer_font)
+    footer_w = footer_bbox[2] - footer_bbox[0]
+    draw.text(((width - footer_w) / 2, 945), footer, font=footer_font, fill=muted)
+
+    bio = io.BytesIO()
+    bio.name = 'confession_card.png'
+    image.save(bio, 'PNG')
+    bio.seek(0)
+    return bio
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text: 
+    if not update.message or not update.message.text:
         return
 
     text = update.message.text
@@ -43,84 +149,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if "Confession:" in text:
-            clean_text = text.split("Confession:")[1]
+            clean_text = text.split("Confession:")[-1]
         else:
             clean_text = text
-            
-        # Clean up HTML tags and replace unsupported unicode symbols (like em-dashes) to prevent  boxes
+
         clean_text = re.sub(r'<[^>]+>', '', clean_text)
-        clean_text = clean_text.replace('<b>', '').replace('</b>', '')
-        clean_text = clean_text.replace('—', '-').replace('–', '-').replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+        clean_text = clean_text.replace('—', '-').replace('–', '-')
+        clean_text = clean_text.replace('“', '"').replace('”', '"')
+        clean_text = clean_text.replace('‘', "'").replace('’', "'")
         clean_text = clean_text.strip().strip('"').strip()
 
         if not clean_text:
-            clean_text = text.strip()
+            await update.message.reply_text("Couldn't find a confession in that message.")
+            return
 
-        logging.info(f"Processing text length: {len(clean_text)}")
-        
-        # Draw Dark/Gold Card Image (1080x1080)
-        image = Image.new("RGB", (1080, 1080), (7, 8, 11))
-        draw = ImageDraw.Draw(image)
-        
-        # Card outer border
-        draw.rounded_rectangle([60, 80, 1020, 1000], radius=32, fill=(16, 18, 26), outline=(212, 175, 55), width=3)
-        
-        # ADAPTIVE FONT SIZING: Automatically shrinks font for long text so it never overflows
-        text_len = len(clean_text)
-        if text_len < 150:
-            body_size, line_height = 42, 56
-        elif text_len < 350:
-            body_size, line_height = 34, 46
-        else:
-            body_size, line_height = 24, 34  # Compact mode for long essays
+        logging.info(f"Generating card | length: {len(clean_text)}")
 
-        try:
-            title_font = ImageFont.load_default(size=34)
-            body_font = ImageFont.load_default(size=body_size)
-            footer_font = ImageFont.load_default(size=24)
-        except TypeError:
-            title_font = ImageFont.load_default()
-            body_font = ImageFont.load_default()
-            footer_font = ImageFont.load_default()
-
-        # Draw Header Title
-        draw.text((100, 130), "🕯️ UNHOLY CONFESSION", font=title_font, fill=(212, 175, 55))
-
-        # Wrap body text nicely across max width (880px)
-        lines = wrap_text(f'"{clean_text}"', body_font, 880, draw)
-        
-        total_text_height = len(lines) * line_height
-        start_y = max(220, 540 - (total_text_height / 2))
-        
-        # Safety check if it's an extremely long text
-        if start_y + total_text_height > 890:
-            start_y = 210
-
-        for line in lines:
-            if start_y > 880:  # Prevent touching footer
-                break
-            draw.text((100, start_y), line, font=body_font, fill=(240, 240, 240))
-            start_y += line_height
-
-        # Draw Footer Branding fixed neatly at the bottom
-        draw.text((100, 930), "unholyconfessions.online  •  @UnholyPriet", font=footer_font, fill=(150, 150, 150))
-
-        bio = io.BytesIO()
-        bio.name = 'card.png'
-        image.save(bio, 'PNG')
-        bio.seek(0)
-        
-        await update.message.reply_photo(photo=bio, caption="✨ Ready to post on X.")
+        card = generate_confession_card(clean_text)
+        await update.message.reply_photo(photo=card, caption="✨ Ready to post on X.")
 
     except Exception as e:
-        logging.error(f"Error generating card: {e}", exc_info=True)
+        logging.error(f"Error: {e}", exc_info=True)
         await update.message.reply_text(f"Error generating card: {str(e)}")
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    app.add_handler(MessageHandler(filters.TEXT & (\~filters.COMMAND), handle_message))
+    print("Card Generator Bot is running...")
     app.run_polling()
 
 if __name__ == '__main__':
     main()
-    

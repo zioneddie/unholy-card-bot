@@ -10,8 +10,10 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-BOT_TOKEN = os.environ.get("8880619234:AAFakyjGexW9iNsAcG1SujCj9ExTgnYIEVU")
+# Token fixed so the bot will start
+BOT_TOKEN = "8880619234:AAFakyjGexW9iNsAcG1SujCj9ExTgnYIEVU"
 
+# Updated to the new Make.com webhook URL
 MAKE_WEBHOOK_URL = os.environ.get("MAKE_WEBHOOK_URL", "https://hook.eu1.make.com/wecfeq4nogp98h1r87lm85iq360qva2w")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
